@@ -1,4 +1,6 @@
-use log::info;
+use std::{thread, time::Duration};
+
+use log::{error, info};
 use reqwest::header::{self, HeaderMap, HeaderValue};
 
 use crate::types::{Item, PaginatedResponse};
@@ -88,7 +90,7 @@ impl Client {
         info!("Fetching items...");
 
         let url = format!("{}/api/v2/catalog/items", VINTED_BASE_URL);
-        let resp = self
+        let res = self
             .client
             .get(&url)
             .header("X-CSRF-Token", &self.csrf_token)
@@ -97,10 +99,17 @@ impl Client {
             .send()
             .await?;
 
-        let response = resp.json::<PaginatedResponse<Item>>().await?;
+        match res.error_for_status() {
+            Ok(res) => {
+                let response = res.json::<PaginatedResponse<Item>>().await?;
 
-        info!("Fetched {} items", response.items.len());
-
-        Ok(response)
+                info!("Fetched {} items", response.items.len());
+                Ok(response)
+            }
+            Err(err) => {
+                error!("Error fetching items: {}", err);
+                Err(err.into())
+            }
+        }
     }
 }
