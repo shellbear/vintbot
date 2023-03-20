@@ -3,6 +3,12 @@ use serde_derive::Serialize;
 use serde_json::Value;
 
 #[derive(Deserialize, Debug)]
+pub struct PaginatedResponse<T> {
+    pub items: Vec<T>,
+    pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Pagination {
     pub current_page: u32,
     pub per_page: u32,
@@ -117,14 +123,14 @@ pub struct User {
     pub business: bool,
     pub id: i64,
     pub login: String,
-    pub photo: Photo2,
+    pub photo: Option<UserPhoto>,
     #[serde(rename = "profile_url")]
     pub profile_url: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Photo2 {
+pub struct UserPhoto {
     #[serde(rename = "dominant_color")]
     pub dominant_color: String,
     #[serde(rename = "dominant_color_opaque")]
