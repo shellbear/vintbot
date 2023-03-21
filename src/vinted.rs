@@ -4,6 +4,7 @@ use log::{error, info};
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use reqwest::Proxy;
 
+use crate::db::ItemsFilters;
 use crate::types::{Item, PaginatedResponse};
 
 const VINTED_BASE_URL: &str = "https://www.vinted.fr";
@@ -95,6 +96,7 @@ impl Client {
     pub async fn fetch_items(
         &mut self,
         proxy: Proxy,
+        filters: ItemsFilters,
     ) -> Result<PaginatedResponse<Item>, Box<dyn std::error::Error>> {
         self.client = create_client(proxy)?;
 
@@ -110,12 +112,8 @@ impl Client {
             .get(&url)
             .header("X-CSRF-Token", &self.csrf_token)
             .header(header::ACCEPT, "application/json")
-            .query(&[
-                ("page", "1"),
-                ("per_page", "10"),
-                ("order", "newest_first"),
-                ("search_text", "sandro"),
-            ])
+            .query(&[("page", "1"), ("per_page", "20"), ("order", "newest_first")])
+            .query(&filters)
             .send()
             .await?;
 
