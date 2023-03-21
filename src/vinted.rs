@@ -1,7 +1,8 @@
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 use log::{error, info};
 use reqwest::header::{self, HeaderMap, HeaderValue};
+use reqwest::Proxy;
 
 use crate::types::{Item, PaginatedResponse};
 
@@ -15,7 +16,7 @@ pub struct Client {
     csrf_token: String,
 }
 
-fn create_client() -> reqwest::Result<reqwest::Client> {
+fn create_client(proxy: Proxy) -> reqwest::Result<reqwest::Client> {
     let default_headers = HeaderMap::from_iter([
         (
             header::ACCEPT_ENCODING,
@@ -31,25 +32,27 @@ fn create_client() -> reqwest::Result<reqwest::Client> {
 
     reqwest::ClientBuilder::new()
         .gzip(true)
+        .proxy(proxy)
         .cookie_store(true)
+        .timeout(Duration::from_secs(3))
         .user_agent("Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3615.0 Safari/537.36")
         .default_headers(default_headers)
         .build()
 }
 
 impl Client {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(Self {
-            client: create_client()?,
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
             csrf_token: String::new(),
-        })
+        }
     }
 
     pub async fn fetch_csrf_token(&mut self) -> Result<&str, Box<dyn std::error::Error>> {
         info!("Fetching CSRF token...");
 
         let url = format!("{}/cookie-policy", VINTED_BASE_URL);
-        let resp = self
+        let res = self
             .client
             .get(&url)
             .header(
@@ -58,7 +61,16 @@ impl Client {
             )
             .send()
             .await?;
-        let body = resp.text().await?;
+
+        let res = match res.error_for_status() {
+            Ok(res) => res,
+            Err(e) => {
+                error!("Error fetching CSRF token: {}", e);
+                return Err(e.into());
+            }
+        };
+
+        let body = res.text().await?;
 
         // Find the starting index of the start pattern
         let start_index = match body.find(CRSF_META_START_TAG) {
@@ -82,7 +94,10 @@ impl Client {
 
     pub async fn fetch_items(
         &mut self,
+        proxy: Proxy,
     ) -> Result<PaginatedResponse<Item>, Box<dyn std::error::Error>> {
+        self.client = create_client(proxy)?;
+
         if self.csrf_token.is_empty() {
             self.fetch_csrf_token().await?;
         }
@@ -95,21 +110,26 @@ impl Client {
             .get(&url)
             .header("X-CSRF-Token", &self.csrf_token)
             .header(header::ACCEPT, "application/json")
-            .query(&[("page", "1"), ("per_page", "1")])
+            .query(&[
+                ("page", "1"),
+                ("per_page", "10"),
+                ("order", "newest_first"),
+                ("search_text", "sandro"),
+            ])
             .send()
             .await?;
 
-        match res.error_for_status() {
-            Ok(res) => {
-                let response = res.json::<PaginatedResponse<Item>>().await?;
-
-                info!("Fetched {} items", response.items.len());
-                Ok(response)
-            }
+        let res = match res.error_for_status() {
+            Ok(res) => res,
             Err(err) => {
                 error!("Error fetching items: {}", err);
-                Err(err.into())
+                return Err(err.into());
             }
-        }
+        };
+
+        let response = res.json::<PaginatedResponse<Item>>().await?;
+
+        info!("Fetched {} items", response.items.len());
+        Ok(response)
     }
 }
