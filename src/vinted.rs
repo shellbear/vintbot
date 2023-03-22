@@ -17,7 +17,7 @@ pub struct Client {
     csrf_token: String,
 }
 
-fn create_client(proxy: Proxy) -> reqwest::Result<reqwest::Client> {
+fn create_client() -> reqwest::Result<reqwest::Client> {
     let default_headers = HeaderMap::from_iter([
         (
             header::ACCEPT_ENCODING,
@@ -33,20 +33,19 @@ fn create_client(proxy: Proxy) -> reqwest::Result<reqwest::Client> {
 
     reqwest::ClientBuilder::new()
         .gzip(true)
-        .proxy(proxy)
         .cookie_store(true)
-        .timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(2))
         .user_agent("Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3615.0 Safari/537.36")
         .default_headers(default_headers)
         .build()
 }
 
 impl Client {
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::new(),
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self {
+            client: create_client()?,
             csrf_token: String::new(),
-        }
+        })
     }
 
     pub async fn fetch_csrf_token(&mut self) -> Result<&str, Box<dyn std::error::Error>> {
@@ -95,14 +94,11 @@ impl Client {
 
     pub async fn fetch_items(
         &mut self,
-        proxy: Proxy,
         filters: ItemsFilters,
     ) -> Result<PaginatedResponse<Item>, Box<dyn std::error::Error>> {
-        self.client = create_client(proxy)?;
-
-        if self.csrf_token.is_empty() {
-            self.fetch_csrf_token().await?;
-        }
+        //if self.csrf_token.is_empty() {
+        self.fetch_csrf_token().await?;
+        //}
 
         info!("Fetching items...");
 
@@ -110,10 +106,18 @@ impl Client {
         let res = self
             .client
             .get(&url)
+            .header(header::REFERER, VINTED_BASE_URL)
+            .header(header::ORIGIN, VINTED_BASE_URL)
+            .header(header::ACCEPT, "application/json; charset=utf-8")
             .header("X-CSRF-Token", &self.csrf_token)
-            .header(header::ACCEPT, "application/json")
-            .query(&[("page", "1"), ("per_page", "20"), ("order", "newest_first")])
-            .query(&filters)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .header("Sec-GPC", "1")
+            .header("TE", "Trailers")
+            .header("Sec-Fetch-Site", "same-origin")
+            .header("Sec-Fetch-Mode", "cors")
+            .header("Sec-Fetch-Dest", "empty")
+            .query(&[("order", "newest_first")])
+            .query(&filters.to_query())
             .send()
             .await?;
 
@@ -128,6 +132,7 @@ impl Client {
         let response = res.json::<PaginatedResponse<Item>>().await?;
 
         info!("Fetched {} items", response.items.len());
+
         Ok(response)
     }
 }

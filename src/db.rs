@@ -11,22 +11,62 @@ struct Query {
 
 #[derive(Deserialize, Serialize)]
 pub struct ItemsFilters {
+    pub search_text: Option<String>,
     #[serde(rename = "size_id[]")]
-    sizes: Option<Vec<i32>>,
+    pub sizes: Option<Vec<i32>>,
     #[serde(rename = "catalog[]")]
-    categories: Option<Vec<i32>>,
+    pub categories: Option<Vec<i32>>,
     #[serde(rename = "status_ids[]")]
-    conditions: Option<Vec<i32>>,
+    pub conditions: Option<Vec<i32>>,
     // https://www.vinted.fr/api/v2/brands?keyword=
     #[serde(rename = "brand_id[]")]
-    brands: Option<Vec<i32>>,
-    price_from: Option<i32>,
-    price_to: Option<i32>,
+    pub brands: Option<Vec<i32>>,
+    pub price_from: Option<i32>,
+    pub price_to: Option<i32>,
+}
+
+impl ItemsFilters {
+    pub fn to_query(&self) -> Vec<(&str, serde_json::Value)> {
+        let mut query: Vec<(&str, serde_json::Value)> = Vec::new();
+
+        if let Some(search_text) = &self.search_text {
+            query.push(("search_text", serde_json::Value::from(search_text.clone())));
+        }
+        if let Some(sizes) = &self.sizes {
+            for size in sizes {
+                query.push(("size_id[]", serde_json::Value::from(*size)));
+            }
+        }
+        if let Some(categories) = &self.categories {
+            for category in categories {
+                query.push(("catalog[]", serde_json::Value::from(*category)));
+            }
+        }
+        if let Some(conditions) = &self.conditions {
+            for condition in conditions {
+                query.push(("status_ids[]", serde_json::Value::from(*condition)));
+            }
+        }
+        if let Some(brands) = &self.brands {
+            for brand in brands {
+                query.push(("brand_id[]", serde_json::Value::from(*brand)));
+            }
+        }
+        if let Some(price_from) = self.price_from {
+            query.push(("price_from", serde_json::Value::from(price_from)));
+        }
+        if let Some(price_to) = self.price_to {
+            query.push(("price_t", serde_json::Value::from(price_to)));
+        }
+
+        query
+    }
 }
 
 impl Default for ItemsFilters {
     fn default() -> Self {
         Self {
+            search_text: None,
             sizes: None,
             categories: None,
             conditions: None,
@@ -37,7 +77,7 @@ impl Default for ItemsFilters {
     }
 }
 
-enum Sizes {
+pub enum Sizes {
     XS = 206,
     S = 207,
     M = 208,
@@ -47,12 +87,12 @@ enum Sizes {
     XXXL = 212,
 }
 
-enum Categories {
+pub enum Categories {
     Men = 5,
     Clothes = 2050,
 }
 
-enum Condition {
+pub enum Condition {
     NewWithoutTags = 1,
     ReallyGood = 2,
     Good = 3,

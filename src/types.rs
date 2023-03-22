@@ -38,11 +38,8 @@ pub struct Item {
     pub is_for_swap: bool,
     #[serde(rename = "is_visible")]
     pub is_visible: i64,
-    pub photo: Photo,
+    pub photo: Option<Photo>,
     pub price: String,
-    pub promoted: bool,
-    #[serde(rename = "search_tracking_params")]
-    pub search_tracking_params: SearchTrackingParams,
     #[serde(rename = "service_fee")]
     pub service_fee: String,
     #[serde(rename = "shipping_fee")]
@@ -107,14 +104,6 @@ pub struct Thumbnail {
     pub type_field: String,
     pub url: String,
     pub width: i64,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SearchTrackingParams {
-    #[serde(rename = "matched_queries")]
-    pub matched_queries: Vec<String>,
-    pub score: f64,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
